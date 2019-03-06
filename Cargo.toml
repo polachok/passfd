@@ -1,0 +1,13 @@
+[package]
+name = "passfd"
+version = "0.1.0"
+authors = ["Alexander Polakov <plhk@sdf.org>"]
+edition = "2018"
+description = "File descriptor passing"
+license = "MIT"
+documentation = "https://docs.rs/passfd/"
+repository = "https://github.com/polachok/passfd"
+homepage = "https://github.com/polachok/passfd"
+
+[dependencies]
+libc = "0.2"
