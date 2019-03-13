@@ -1,6 +1,6 @@
 [package]
 name = "passfd"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Alexander Polakov <plhk@sdf.org>"]
 edition = "2018"
 description = "File descriptor passing"
@@ -11,3 +11,6 @@ homepage = "https://github.com/polachok/passfd"
 
 [dependencies]
 libc = "0.2"
+
+[dev-dependencies]
+tempdir = "0.3"

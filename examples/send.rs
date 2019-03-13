@@ -1,7 +1,7 @@
-use std::os::unix::io::{RawFd, AsRawFd};
-use std::os::unix::net::UnixListener;
-use std::fs::File;
 use passfd::FdPassingExt;
+use std::fs::File;
+use std::os::unix::io::AsRawFd;
+use std::os::unix::net::UnixListener;
 
 fn main() {
     let file = File::open("/etc/passwd").unwrap();
