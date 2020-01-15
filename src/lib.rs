@@ -7,6 +7,9 @@ use std::mem;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::UnixStream;
 
+#[cfg(feature = "tokio_01")]
+pub mod tokio_01;
+
 /// Main trait, extends UnixStream
 pub trait FdPassingExt {
     /// Send RawFd. No type information is transmitted.
@@ -16,6 +19,16 @@ pub trait FdPassingExt {
 }
 
 impl FdPassingExt for UnixStream {
+    fn send_fd(&self, fd: RawFd) -> Result<(), Error> {
+        self.as_raw_fd().send_fd(fd)
+    }
+
+    fn recv_fd(&self) -> Result<RawFd, Error> {
+        self.as_raw_fd().recv_fd()
+    }
+}
+
+impl FdPassingExt for RawFd {
     fn send_fd(&self, fd: RawFd) -> Result<(), Error> {
         let mut dummy: c_int = 0;
         let msg_len = unsafe { libc::CMSG_SPACE(mem::size_of::<c_int>() as u32) as _ };
@@ -42,7 +55,7 @@ impl FdPassingExt for UnixStream {
             msg_flags: 0,
         };
 
-        let rv = unsafe { libc::sendmsg(self.as_raw_fd(), &msg, 0) };
+        let rv = unsafe { libc::sendmsg(*self, &msg, 0) };
         if rv < 0 {
             return Err(Error::last_os_error());
         }
@@ -69,7 +82,7 @@ impl FdPassingExt for UnixStream {
         };
 
         unsafe {
-            let rv = libc::recvmsg(self.as_raw_fd(), &mut msg, 0);
+            let rv = libc::recvmsg(*self, &mut msg, 0);
             if rv < 0 {
                 return Err(Error::last_os_error());
             }
