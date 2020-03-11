@@ -11,6 +11,14 @@ homepage = "https://github.com/polachok/passfd"
 
 [dependencies]
 libc = "0.2"
+tokio-uds = { version = "0.2", optional = true }
+tokio-reactor = { version = "0.1", optional = true }
+futures = { version = "0.1", optional = true }
+mio = { version = "0.6", optional = true }
+mio-uds = { version = "0.6", optional = true }
 
 [dev-dependencies]
 tempdir = "0.3"
+
+[features]
+tokio_01 = ["tokio-uds", "tokio-reactor", "futures", "mio", "mio-uds" ]
