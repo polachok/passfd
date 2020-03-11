@@ -10,6 +10,9 @@ use std::os::unix::net::UnixStream;
 #[cfg(feature = "tokio_01")]
 pub mod tokio_01;
 
+#[cfg(feature = "tokio_02")]
+pub mod tokio_02;
+
 /// Main trait, extends UnixStream
 pub trait FdPassingExt {
     /// Send RawFd. No type information is transmitted.
