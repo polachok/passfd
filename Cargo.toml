@@ -16,9 +16,12 @@ tokio-reactor = { version = "0.1", optional = true }
 futures = { version = "0.1", optional = true }
 mio = { version = "0.6", optional = true }
 mio-uds = { version = "0.6", optional = true }
+tokio2 = { package = "tokio", version = "0.2", features = ["uds","io-driver"], optional = true }
+futures-core = { version = "0.3", optional = true }
 
 [dev-dependencies]
 tempdir = "0.3"
 
 [features]
-tokio_01 = ["tokio-uds", "tokio-reactor", "futures", "mio", "mio-uds" ]
+tokio_01 = ["tokio-uds", "tokio-reactor", "futures", "mio", "mio-uds"]
+tokio_02 = ["tokio2", "mio", "mio-uds", "futures-core"]

@@ -10,6 +10,9 @@ use std::os::unix::net::UnixStream;
 #[cfg(feature = "tokio_01")]
 pub mod tokio_01;
 
+#[cfg(feature = "tokio_02")]
+pub mod tokio_02;
+
 /// Main trait, extends UnixStream
 pub trait FdPassingExt {
     /// Send RawFd. No type information is transmitted.
@@ -38,12 +41,16 @@ impl FdPassingExt for RawFd {
             iov_len: mem::size_of_val(&dummy),
         };
         unsafe {
-            let hdr: *mut libc::cmsghdr = buf.as_mut_ptr() as *mut libc::cmsghdr;
-            (*hdr).cmsg_level = libc::SOL_SOCKET;
-            (*hdr).cmsg_type = libc::SCM_RIGHTS;
-            (*hdr).cmsg_len = libc::CMSG_LEN(mem::size_of::<c_int>() as u32) as _;
-            let data = libc::CMSG_DATA(hdr) as *mut c_int;
-            *data = fd;
+            let hdr = libc::cmsghdr {
+                cmsg_level: libc::SOL_SOCKET,
+                cmsg_type: libc::SCM_RIGHTS,
+                cmsg_len: libc::CMSG_LEN(mem::size_of::<c_int>() as u32) as _,
+            };
+            #[allow(clippy::cast_ptr_alignment)] // https://github.com/rust-lang/rust-clippy/issues/2881
+            std::ptr::write_unaligned(buf.as_mut_ptr() as *mut _, hdr);
+
+            #[allow(clippy::cast_ptr_alignment)] // https://github.com/rust-lang/rust-clippy/issues/2881
+            std::ptr::write_unaligned(libc::CMSG_DATA(buf.as_mut_ptr() as *const _) as *mut c_int, fd);
         }
         let msg: msghdr = libc::msghdr {
             msg_name: std::ptr::null_mut(),
@@ -83,26 +90,37 @@ impl FdPassingExt for RawFd {
 
         unsafe {
             let rv = libc::recvmsg(*self, &mut msg, 0);
-            if rv < 0 {
-                return Err(Error::last_os_error());
-            }
-            if rv == mem::size_of::<c_int>() as isize {
-                let hdr: *mut libc::cmsghdr =
-                    if msg.msg_controllen >= mem::size_of::<libc::cmsghdr>() as _ {
-                        msg.msg_control as *mut libc::cmsghdr
-                    } else {
-                        return Err(Error::new(ErrorKind::InvalidData, "bad control msg"));
-                    };
-                if (*hdr).cmsg_level != libc::SOL_SOCKET || (*hdr).cmsg_type != libc::SCM_RIGHTS {
-                    return Err(Error::new(ErrorKind::InvalidData, "bad control msg"));
+            match rv {
+                0 => Err(Error::new(ErrorKind::UnexpectedEof, "0 bytes read")),
+                rv if rv < 0 => Err(Error::last_os_error()),
+                rv if rv == mem::size_of::<c_int>() as isize => {
+                    let hdr: *mut libc::cmsghdr =
+                        if msg.msg_controllen >= mem::size_of::<libc::cmsghdr>() as _ {
+                            msg.msg_control as *mut libc::cmsghdr
+                        } else {
+                            return Err(Error::new(
+                                ErrorKind::InvalidData,
+                                "bad control msg (header)",
+                            ));
+                        };
+                    if (*hdr).cmsg_level != libc::SOL_SOCKET || (*hdr).cmsg_type != libc::SCM_RIGHTS
+                    {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "bad control msg (level)",
+                        ));
+                    }
+                    if msg.msg_controllen != libc::CMSG_SPACE(mem::size_of::<c_int>() as u32) as _ {
+                        return Err(Error::new(ErrorKind::InvalidData, "bad control msg (len)"));
+                    }
+                    #[allow(clippy::cast_ptr_alignment)] // https://github.com/rust-lang/rust-clippy/issues/2881
+                    let data = std::ptr::read_unaligned(libc::CMSG_DATA(hdr) as *mut c_int);
+                    Ok(data)
                 }
-                if msg.msg_controllen != libc::CMSG_SPACE(mem::size_of::<c_int>() as u32) as _ {
-                    return Err(Error::new(ErrorKind::InvalidData, "bad control msg"));
-                }
-                let data = libc::CMSG_DATA(hdr) as *mut c_int;
-                Ok(*data)
-            } else {
-                Err(Error::new(ErrorKind::InvalidData, "bad control msg"))
+                _ => Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "bad control msg (ret code)",
+                )),
             }
         }
     }
