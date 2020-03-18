@@ -1,3 +1,6 @@
+//! Support for tokio 0.1 UnixStream.
+//! It does a really bad `mem::transmute`, which is *NOT SAFE*
+
 use std::io::{Error, ErrorKind};
 use std::os::unix::io::{AsRawFd, RawFd};
 

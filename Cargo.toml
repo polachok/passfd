@@ -1,6 +1,6 @@
 [package]
 name = "passfd"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Alexander Polakov <plhk@sdf.org>"]
 edition = "2018"
 description = "File descriptor passing"

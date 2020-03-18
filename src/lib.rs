@@ -1,5 +1,42 @@
 //! `passfd` allows passing file descriptors between unrelated processes
 //! using Unix sockets.
+//!
+//! Both tokio 0.1 and 0.2 are supported with `tokio_01` and `tokio_02`
+//! features. Please note that these features rely on internal representation
+//! of UnixStream and are unsafe.
+//!
+//! # Example usage
+//! ## Process 1 (sender)
+//! ```
+//! use passfd::FdPassingExt;
+//! use std::fs::File;
+//! use std::os::unix::io::AsRawFd;
+//! use std::os::unix::net::UnixListener;
+//!
+//!fn main() {
+//!    let file = File::open("/etc/passwd").unwrap();
+//!    let listener = UnixListener::bind("/tmp/test.sock").unwrap();
+//!    let (stream, _) = listener.accept().unwrap();
+//!    stream.send_fd(file.as_raw_fd()).unwrap();
+//! }
+//! ```
+//! ## Process 2 (receiver)
+//! ```
+//! use passfd::FdPassingExt;
+//! use std::fs::File;
+//! use std::io::Read;
+//! use std::os::unix::io::FromRawFd;
+//! use std::os::unix::net::UnixStream;
+//!
+//! fn main() {
+//!    let stream = UnixStream::connect("/tmp/test.sock").unwrap();
+//!    let fd = stream.recv_fd().unwrap();
+//!    let mut file = unsafe { File::from_raw_fd(fd) };
+//!    let mut buf = String::new();
+//!    file.read_to_string(&mut buf).unwrap();
+//!    println!("{}", buf);
+//! }
+//! ```
 
 use libc::{self, c_int, c_void, msghdr};
 use std::io::{Error, ErrorKind};
@@ -10,6 +47,7 @@ use std::os::unix::net::UnixStream;
 #[cfg(feature = "tokio_01")]
 pub mod tokio_01;
 
+// Support for tokio 0.2
 #[cfg(feature = "tokio_02")]
 pub mod tokio_02;
 
@@ -46,11 +84,16 @@ impl FdPassingExt for RawFd {
                 cmsg_type: libc::SCM_RIGHTS,
                 cmsg_len: libc::CMSG_LEN(mem::size_of::<c_int>() as u32) as _,
             };
-            #[allow(clippy::cast_ptr_alignment)] // https://github.com/rust-lang/rust-clippy/issues/2881
+            // https://github.com/rust-lang/rust-clippy/issues/2881
+            #[allow(clippy::cast_ptr_alignment)]
             std::ptr::write_unaligned(buf.as_mut_ptr() as *mut _, hdr);
 
-            #[allow(clippy::cast_ptr_alignment)] // https://github.com/rust-lang/rust-clippy/issues/2881
-            std::ptr::write_unaligned(libc::CMSG_DATA(buf.as_mut_ptr() as *const _) as *mut c_int, fd);
+            // https://github.com/rust-lang/rust-clippy/issues/2881
+            #[allow(clippy::cast_ptr_alignment)]
+            std::ptr::write_unaligned(
+                libc::CMSG_DATA(buf.as_mut_ptr() as *const _) as *mut c_int,
+                fd,
+            );
         }
         let msg: msghdr = libc::msghdr {
             msg_name: std::ptr::null_mut(),
@@ -113,7 +156,8 @@ impl FdPassingExt for RawFd {
                     if msg.msg_controllen != libc::CMSG_SPACE(mem::size_of::<c_int>() as u32) as _ {
                         return Err(Error::new(ErrorKind::InvalidData, "bad control msg (len)"));
                     }
-                    #[allow(clippy::cast_ptr_alignment)] // https://github.com/rust-lang/rust-clippy/issues/2881
+                    // https://github.com/rust-lang/rust-clippy/issues/2881
+                    #[allow(clippy::cast_ptr_alignment)]
                     let data = std::ptr::read_unaligned(libc::CMSG_DATA(hdr) as *mut c_int);
                     Ok(data)
                 }
