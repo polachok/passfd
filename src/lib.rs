@@ -158,8 +158,11 @@ impl FdPassingExt for RawFd {
                     }
                     // https://github.com/rust-lang/rust-clippy/issues/2881
                     #[allow(clippy::cast_ptr_alignment)]
-                    let data = std::ptr::read_unaligned(libc::CMSG_DATA(hdr) as *mut c_int);
-                    Ok(data)
+                    let fd = std::ptr::read_unaligned(libc::CMSG_DATA(hdr) as *mut c_int);
+                    if libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) < 0 {
+                        return Err(Error::last_os_error());
+                    }
+                    Ok(fd)
                 }
                 _ => Err(Error::new(
                     ErrorKind::InvalidData,
