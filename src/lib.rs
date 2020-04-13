@@ -13,12 +13,10 @@
 //! use std::os::unix::io::AsRawFd;
 //! use std::os::unix::net::UnixListener;
 //!
-//!fn main() {
-//!    let file = File::open("/etc/passwd").unwrap();
-//!    let listener = UnixListener::bind("/tmp/test.sock").unwrap();
-//!    let (stream, _) = listener.accept().unwrap();
-//!    stream.send_fd(file.as_raw_fd()).unwrap();
-//! }
+//! let file = File::open("/etc/passwd").unwrap();
+//! let listener = UnixListener::bind("/tmp/test.sock").unwrap();
+//! let (stream, _) = listener.accept().unwrap();
+//! stream.send_fd(file.as_raw_fd()).unwrap();
 //! ```
 //! ## Process 2 (receiver)
 //! ```
@@ -28,14 +26,12 @@
 //! use std::os::unix::io::FromRawFd;
 //! use std::os::unix::net::UnixStream;
 //!
-//! fn main() {
-//!    let stream = UnixStream::connect("/tmp/test.sock").unwrap();
-//!    let fd = stream.recv_fd().unwrap();
-//!    let mut file = unsafe { File::from_raw_fd(fd) };
-//!    let mut buf = String::new();
-//!    file.read_to_string(&mut buf).unwrap();
-//!    println!("{}", buf);
-//! }
+//! let stream = UnixStream::connect("/tmp/test.sock").unwrap();
+//! let fd = stream.recv_fd().unwrap();
+//! let mut file = unsafe { File::from_raw_fd(fd) };
+//! let mut buf = String::new();
+//! file.read_to_string(&mut buf).unwrap();
+//! println!("{}", buf);
 //! ```
 
 use libc::{self, c_int, c_void, msghdr};
@@ -69,15 +65,37 @@ impl FdPassingExt for UnixStream {
     }
 }
 
+// buffer must be aligned to header (See cmsg(3))
+#[repr(C)]
+union HeaderAlignedBuf {
+    // CMSG_SPACE(mem::size_of::<c_int>()) = 24 (linux x86_64),
+    // we leave some space just in case
+    // TODO: use CMSPG_SPACE when it's const fn
+    // https://github.com/rust-lang/rust/issues/64926
+    buf: [libc::c_char; 256],
+    align: libc::cmsghdr,
+}
+
 impl FdPassingExt for RawFd {
     fn send_fd(&self, fd: RawFd) -> Result<(), Error> {
         let mut dummy: c_int = 0;
         let msg_len = unsafe { libc::CMSG_SPACE(mem::size_of::<c_int>() as u32) as _ };
-        let mut buf = vec![0u8; msg_len as usize];
+        let mut u = HeaderAlignedBuf { buf: [0; 256] };
         let mut iov = libc::iovec {
             iov_base: &mut dummy as *mut c_int as *mut c_void,
             iov_len: mem::size_of_val(&dummy),
         };
+
+        let msg: msghdr = libc::msghdr {
+            msg_name: std::ptr::null_mut(),
+            msg_namelen: 0,
+            msg_iov: &mut iov,
+            msg_iovlen: 1,
+            msg_control: unsafe { u.buf.as_mut_ptr() as *mut c_void },
+            msg_controllen: msg_len,
+            msg_flags: 0,
+        };
+
         unsafe {
             let hdr = libc::cmsghdr {
                 cmsg_level: libc::SOL_SOCKET,
@@ -86,24 +104,15 @@ impl FdPassingExt for RawFd {
             };
             // https://github.com/rust-lang/rust-clippy/issues/2881
             #[allow(clippy::cast_ptr_alignment)]
-            std::ptr::write_unaligned(buf.as_mut_ptr() as *mut _, hdr);
+            std::ptr::write_unaligned(libc::CMSG_FIRSTHDR(&msg), hdr);
 
             // https://github.com/rust-lang/rust-clippy/issues/2881
             #[allow(clippy::cast_ptr_alignment)]
             std::ptr::write_unaligned(
-                libc::CMSG_DATA(buf.as_mut_ptr() as *const _) as *mut c_int,
+                libc::CMSG_DATA(u.buf.as_mut_ptr() as *const _) as *mut c_int,
                 fd,
             );
         }
-        let msg: msghdr = libc::msghdr {
-            msg_name: std::ptr::null_mut(),
-            msg_namelen: 0,
-            msg_iov: &mut iov,
-            msg_iovlen: 1,
-            msg_control: buf.as_mut_ptr() as *mut c_void,
-            msg_controllen: msg_len,
-            msg_flags: 0,
-        };
 
         let rv = unsafe { libc::sendmsg(*self, &msg, 0) };
         if rv < 0 {
@@ -116,7 +125,7 @@ impl FdPassingExt for RawFd {
     fn recv_fd(&self) -> Result<RawFd, Error> {
         let mut dummy: c_int = -1;
         let msg_len = unsafe { libc::CMSG_SPACE(mem::size_of::<c_int>() as u32) as _ };
-        let mut buf = vec![0u8; msg_len as usize];
+        let mut u = HeaderAlignedBuf { buf: [0; 256] };
         let mut iov = libc::iovec {
             iov_base: &mut dummy as *mut c_int as *mut c_void,
             iov_len: mem::size_of_val(&dummy),
@@ -126,7 +135,7 @@ impl FdPassingExt for RawFd {
             msg_namelen: 0,
             msg_iov: &mut iov,
             msg_iovlen: 1,
-            msg_control: buf.as_mut_ptr() as *mut c_void,
+            msg_control: unsafe { u.buf.as_mut_ptr() as *mut c_void },
             msg_controllen: msg_len,
             msg_flags: 0,
         };
@@ -181,6 +190,13 @@ mod tests {
     use std::os::unix::io::{AsRawFd, FromRawFd};
     use std::os::unix::net::{UnixListener, UnixStream};
     use tempdir::TempDir;
+
+    #[test]
+    fn assert_sized() {
+        let msg_len = unsafe { libc::CMSG_SPACE(mem::size_of::<c_int>() as u32) as usize };
+        let u = HeaderAlignedBuf { buf: [0; 256] };
+        assert!(msg_len < std::mem::size_of_val(&u));
+    }
 
     #[test]
     fn it_works() {

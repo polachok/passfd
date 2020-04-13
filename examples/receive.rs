@@ -11,4 +11,5 @@ fn main() {
     let mut buf = String::new();
     file.read_to_string(&mut buf).unwrap();
     println!("{}", buf);
+    std::thread::sleep(std::time::Duration::from_secs(30));
 }
