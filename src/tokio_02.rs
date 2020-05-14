@@ -19,13 +19,13 @@ use mio::Ready;
 /// Main trait, extends UnixStream
 pub trait FdPassingExt {
     /// Send RawFd. No type information is transmitted.
-    fn send_fd(&mut self, fd: RawFd) -> SendFd;
+    fn send_fd(&self, fd: RawFd) -> SendFd;
     /// Receive RawFd. No type information is transmitted.
-    fn recv_fd(&mut self) -> RecvFd;
+    fn recv_fd(&self) -> RecvFd;
 }
 
 pub struct SendFd<'a> {
-    stream: &'a mut UnixStream,
+    stream: &'a UnixStream,
     fd: RawFd,
 }
 
@@ -51,7 +51,7 @@ impl<'a> Future for SendFd<'a> {
 }
 
 pub struct RecvFd<'a> {
-    stream: &'a mut UnixStream,
+    stream: &'a UnixStream,
 }
 
 impl<'a> Future for RecvFd<'a> {
@@ -76,11 +76,11 @@ impl<'a> Future for RecvFd<'a> {
 }
 
 impl FdPassingExt for UnixStream {
-    fn send_fd(&mut self, fd: RawFd) -> SendFd {
+    fn send_fd(&self, fd: RawFd) -> SendFd {
         SendFd { stream: self, fd }
     }
 
-    fn recv_fd(&mut self) -> RecvFd {
+    fn recv_fd(&self) -> RecvFd {
         RecvFd { stream: self }
     }
 }
