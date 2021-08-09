@@ -37,6 +37,7 @@
 use libc::{self, c_int, c_void, msghdr};
 use std::io::{Error, ErrorKind};
 use std::mem;
+use std::mem::MaybeUninit;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::UnixStream;
 
@@ -86,22 +87,28 @@ impl FdPassingExt for RawFd {
             iov_len: mem::size_of_val(&dummy),
         };
 
-        let msg: msghdr = libc::msghdr {
-            msg_name: std::ptr::null_mut(),
-            msg_namelen: 0,
-            msg_iov: &mut iov,
-            msg_iovlen: 1,
-            msg_control: unsafe { u.buf.as_mut_ptr() as *mut c_void },
-            msg_controllen: msg_len,
-            msg_flags: 0,
-        };
+        let mut msg: MaybeUninit<msghdr> = MaybeUninit::uninit();
+        unsafe {
+            let msg_ptr = msg.as_mut_ptr();
+            (*msg_ptr).msg_name = std::ptr::null_mut();
+            (*msg_ptr).msg_namelen = 0;
+            (*msg_ptr).msg_iov = &mut iov;
+            (*msg_ptr).msg_iovlen = 1;
+            (*msg_ptr).msg_control = u.buf.as_mut_ptr() as *mut c_void;
+            (*msg_ptr).msg_controllen = msg_len;
+            (*msg_ptr).msg_flags = 0;
+        }
+        let msg = unsafe { msg.assume_init() };
 
         unsafe {
-            let hdr = libc::cmsghdr {
-                cmsg_level: libc::SOL_SOCKET,
-                cmsg_type: libc::SCM_RIGHTS,
-                cmsg_len: libc::CMSG_LEN(mem::size_of::<c_int>() as u32) as _,
-            };
+            let mut hdr: MaybeUninit<libc::cmsghdr> = MaybeUninit::uninit();
+            {
+                let mut hdr = hdr.as_mut_ptr();
+                (*hdr).cmsg_level = libc::SOL_SOCKET;
+                (*hdr).cmsg_type = libc::SCM_RIGHTS;
+                (*hdr).cmsg_len = libc::CMSG_LEN(mem::size_of::<c_int>() as u32) as _;
+            }
+            let hdr = hdr.assume_init();
             // https://github.com/rust-lang/rust-clippy/issues/2881
             #[allow(clippy::cast_ptr_alignment)]
             std::ptr::write_unaligned(libc::CMSG_FIRSTHDR(&msg), hdr);
@@ -130,15 +137,19 @@ impl FdPassingExt for RawFd {
             iov_base: &mut dummy as *mut c_int as *mut c_void,
             iov_len: mem::size_of_val(&dummy),
         };
-        let mut msg: msghdr = libc::msghdr {
-            msg_name: std::ptr::null_mut(),
-            msg_namelen: 0,
-            msg_iov: &mut iov,
-            msg_iovlen: 1,
-            msg_control: unsafe { u.buf.as_mut_ptr() as *mut c_void },
-            msg_controllen: msg_len,
-            msg_flags: 0,
-        };
+
+        let mut msg: MaybeUninit<msghdr> = MaybeUninit::uninit();
+        unsafe {
+            let msg_ptr = msg.as_mut_ptr();
+            (*msg_ptr).msg_name = std::ptr::null_mut();
+            (*msg_ptr).msg_namelen = 0;
+            (*msg_ptr).msg_iov = &mut iov;
+            (*msg_ptr).msg_iovlen = 1;
+            (*msg_ptr).msg_control = u.buf.as_mut_ptr() as *mut c_void;
+            (*msg_ptr).msg_controllen = msg_len;
+            (*msg_ptr).msg_flags = 0;
+        }
+        let mut msg = unsafe { msg.assume_init() };
 
         unsafe {
             let rv = libc::recvmsg(*self, &mut msg, 0);
