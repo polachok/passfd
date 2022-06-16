@@ -145,7 +145,7 @@ impl FdPassingExt for RawFd {
             match rv {
                 0 => Err(Error::new(ErrorKind::UnexpectedEof, "0 bytes read")),
                 rv if rv < 0 => Err(Error::last_os_error()),
-                rv if rv == mem::size_of::<c_int>() as isize => {
+                _ => {
                     let hdr: *mut libc::cmsghdr =
                         if msg.msg_controllen >= mem::size_of::<libc::cmsghdr>() as _ {
                             msg.msg_control as *mut libc::cmsghdr
@@ -173,10 +173,6 @@ impl FdPassingExt for RawFd {
                     }
                     Ok(fd)
                 }
-                _ => Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "bad control msg (ret code)",
-                )),
             }
         }
     }
