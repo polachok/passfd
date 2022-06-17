@@ -40,8 +40,8 @@ use std::mem;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::UnixStream;
 
-#[cfg(feature = "tokio_01")]
-pub mod tokio_01;
+#[cfg(feature = "tokio")]
+pub mod tokio;
 
 // Support for tokio 0.2
 #[cfg(feature = "tokio_02")]
