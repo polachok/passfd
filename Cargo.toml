@@ -12,7 +12,12 @@ homepage = "https://github.com/polachok/passfd"
 [dependencies]
 libc = "0.2"
 async-trait = { version = "0.1", optional = true }
-tokio = { version = "1.19", optional = true, features = ["net"] }
+tokio = { version = "1.19", optional = true, features = [
+  "net",
+  "rt",
+  "macros",
+  "io-util",
+] }
 mio = { version = "0.6", optional = true }
 mio-uds = { version = "0.6", optional = true }
 tokio2 = { package = "tokio", version = "0.2", features = [
