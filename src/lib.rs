@@ -47,6 +47,10 @@ pub mod tokio_01;
 #[cfg(feature = "tokio_02")]
 pub mod tokio_02;
 
+// Support for tokio 0.2
+#[cfg(feature = "tokio_10")]
+pub mod tokio_10;
+
 /// Main trait, extends UnixStream
 pub trait FdPassingExt {
     /// Send RawFd. No type information is transmitted.
