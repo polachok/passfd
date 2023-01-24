@@ -87,7 +87,7 @@ impl FdPassingExt for RawFd {
             iov_len: mem::size_of_val(&dummy),
         };
 
-        let mut msg: MaybeUninit<msghdr> = MaybeUninit::uninit();
+        let mut msg: MaybeUninit<msghdr> = MaybeUninit::zeroed();
         unsafe {
             let msg_ptr = msg.as_mut_ptr();
             (*msg_ptr).msg_name = std::ptr::null_mut();
