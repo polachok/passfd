@@ -55,14 +55,19 @@ pub mod tokio_10;
 /// Main trait, extends UnixStream
 pub trait FdPassingExt {
     /// Send RawFd. No type information is transmitted.
-    fn send_fd(&self, fd: RawFd) -> Result<(), Error>;
+    fn send_fd(&self, fd: RawFd) -> Result<(), Error> {
+        let dummy_payload = [0u8; mem::size_of::<c_int>()];
+        self.send_fd_with_payload(fd, &dummy_payload[..])
+    }
+    /// Send RawFd. With custom payload to be nice to some receivers.
+    fn send_fd_with_payload(&self, fd: RawFd, payload: &[u8]) -> Result<(), Error>;
     /// Receive RawFd. No type information is transmitted.
     fn recv_fd(&self) -> Result<RawFd, Error>;
 }
 
 impl FdPassingExt for UnixStream {
-    fn send_fd(&self, fd: RawFd) -> Result<(), Error> {
-        self.as_raw_fd().send_fd(fd)
+    fn send_fd_with_payload(&self, fd: RawFd, payload: &[u8]) -> Result<(), Error> {
+        self.as_raw_fd().send_fd_with_payload(fd, payload)
     }
 
     fn recv_fd(&self) -> Result<RawFd, Error> {
@@ -82,13 +87,12 @@ union HeaderAlignedBuf {
 }
 
 impl FdPassingExt for RawFd {
-    fn send_fd(&self, fd: RawFd) -> Result<(), Error> {
-        let mut dummy: c_int = 0;
+    fn send_fd_with_payload(&self, fd: RawFd, payload: &[u8]) -> Result<(), Error> {
         let msg_len = unsafe { libc::CMSG_SPACE(mem::size_of::<c_int>() as u32) as _ };
         let mut u = HeaderAlignedBuf { buf: [0; 256] };
         let mut iov = libc::iovec {
-            iov_base: &mut dummy as *mut c_int as *mut c_void,
-            iov_len: mem::size_of_val(&dummy),
+            iov_base: payload.as_ptr() as *mut u8 as *mut c_void,
+            iov_len: payload.len(),
         };
 
         let mut msg: MaybeUninit<msghdr> = MaybeUninit::zeroed();
