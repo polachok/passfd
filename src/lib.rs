@@ -7,7 +7,7 @@
 //!
 //! # Example usage
 //! ## Process 1 (sender)
-//! ```
+//! ```no_run
 //! use passfd::FdPassingExt;
 //! use std::fs::File;
 //! use std::os::unix::io::AsRawFd;
@@ -19,7 +19,7 @@
 //! stream.send_fd(file.as_raw_fd()).unwrap();
 //! ```
 //! ## Process 2 (receiver)
-//! ```
+//! ```no_run
 //! use passfd::FdPassingExt;
 //! use std::fs::File;
 //! use std::io::Read;
@@ -41,16 +41,9 @@ use std::mem::MaybeUninit;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::os::unix::net::UnixStream;
 
-#[cfg(feature = "tokio_01")]
-pub mod tokio_01;
-
-// Support for tokio 0.2
-#[cfg(feature = "tokio_02")]
-pub mod tokio_02;
-
-// Support for tokio 0.2
-#[cfg(feature = "tokio_10")]
-pub mod tokio_10;
+// Support for tokio 1
+#[cfg(feature = "async")]
+pub mod tokio;
 
 /// Main trait, extends UnixStream
 pub trait FdPassingExt {
@@ -111,7 +104,7 @@ impl FdPassingExt for RawFd {
         unsafe {
             let mut hdr: MaybeUninit<libc::cmsghdr> = MaybeUninit::uninit();
             {
-                let mut hdr = hdr.as_mut_ptr();
+                let hdr = hdr.as_mut_ptr();
                 (*hdr).cmsg_level = libc::SOL_SOCKET;
                 (*hdr).cmsg_type = libc::SCM_RIGHTS;
                 (*hdr).cmsg_len = libc::CMSG_LEN(mem::size_of::<c_int>() as u32) as _;
