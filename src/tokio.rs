@@ -10,8 +10,8 @@ use std::task::Poll;
 
 use futures_core::ready;
 
-use tokio1::io::Interest;
-use tokio1::net::UnixStream;
+use tokio::io::Interest;
+use tokio::net::UnixStream;
 
 use crate::FdPassingExt as SyncFdPassingExt;
 

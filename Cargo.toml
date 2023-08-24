@@ -1,6 +1,6 @@
 [package]
 name = "passfd"
-version = "0.1.6"
+version = "0.2.0"
 authors = ["Alexander Polakov <plhk@sdf.org>"]
 edition = "2018"
 description = "File descriptor passing"
@@ -11,19 +11,11 @@ homepage = "https://github.com/polachok/passfd"
 
 [dependencies]
 libc = "0.2"
-tokio-uds = { version = "0.2", optional = true }
-tokio-reactor = { version = "0.1", optional = true }
-futures = { version = "0.1", optional = true }
-mio = { version = "0.6", optional = true }
-mio-uds = { version = "0.6", optional = true }
-tokio2 = { package = "tokio", version = "0.2", features = ["uds","io-driver"], optional = true }
-tokio1 = { package = "tokio", version = "1.0", features = ["net"], optional = true }
+tokio = { package = "tokio", version = "1.0", features = ["net"], optional = true }
 futures-core = { version = "0.3", optional = true }
 
 [dev-dependencies]
 tempdir = "0.3"
 
 [features]
-tokio_01 = ["tokio-uds", "tokio-reactor", "futures", "mio", "mio-uds"]
-tokio_02 = ["tokio2", "mio", "mio-uds", "futures-core"]
-tokio_10 = ["tokio1", "futures-core"]
+async = ["tokio", "futures-core"]
