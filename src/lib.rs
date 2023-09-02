@@ -158,15 +158,10 @@ impl FdPassingExt for RawFd {
                 0 => Err(Error::new(ErrorKind::UnexpectedEof, "0 bytes read")),
                 rv if rv < 0 => Err(Error::last_os_error()),
                 _ => {
-                    let hdr: *mut libc::cmsghdr =
-                        if msg.msg_controllen >= mem::size_of::<libc::cmsghdr>() as _ {
-                            msg.msg_control as *mut libc::cmsghdr
-                        } else {
-                            return Err(Error::new(
-                                ErrorKind::InvalidData,
-                                "bad control msg (header)",
-                            ));
-                        };
+                    let hdr = libc::CMSG_FIRSTHDR(&msg);
+                    if hdr.is_null() {
+                        return Err(Error::new(ErrorKind::InvalidData, "missing control msg"));
+                    }
                     if (*hdr).cmsg_level != libc::SOL_SOCKET || (*hdr).cmsg_type != libc::SCM_RIGHTS
                     {
                         return Err(Error::new(
