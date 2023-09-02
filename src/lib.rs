@@ -158,6 +158,9 @@ impl FdPassingExt for RawFd {
                 0 => Err(Error::new(ErrorKind::UnexpectedEof, "0 bytes read")),
                 rv if rv < 0 => Err(Error::last_os_error()),
                 _ => {
+                    if (msg.msg_flags & libc::MSG_CTRUNC) != 0 {
+                        return Err(Error::new(ErrorKind::InvalidData, "control data truncated"));
+                    };
                     let hdr = libc::CMSG_FIRSTHDR(&msg);
                     if hdr.is_null() {
                         return Err(Error::new(ErrorKind::InvalidData, "missing control msg"));
