@@ -165,15 +165,11 @@ impl FdPassingExt for RawFd {
                     if hdr.is_null() {
                         return Err(Error::new(ErrorKind::InvalidData, "missing control msg"));
                     }
-                    if (*hdr).cmsg_level != libc::SOL_SOCKET || (*hdr).cmsg_type != libc::SCM_RIGHTS
+                    if (*hdr).cmsg_len != libc::CMSG_LEN(mem::size_of::<c_int>() as u32)
+                        || (*hdr).cmsg_level != libc::SOL_SOCKET
+                        || (*hdr).cmsg_type != libc::SCM_RIGHTS
                     {
-                        return Err(Error::new(
-                            ErrorKind::InvalidData,
-                            "bad control msg (level)",
-                        ));
-                    }
-                    if msg.msg_controllen != libc::CMSG_SPACE(mem::size_of::<c_int>() as u32) as _ {
-                        return Err(Error::new(ErrorKind::InvalidData, "bad control msg (len)"));
+                        return Err(Error::new(ErrorKind::InvalidData, "bad control msg"));
                     }
                     // https://github.com/rust-lang/rust-clippy/issues/2881
                     #[allow(clippy::cast_ptr_alignment)]
